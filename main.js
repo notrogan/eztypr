@@ -1,0 +1,73 @@
+// main.js - This is your content script
+function codeToInject() {
+    // ALL YOUR CODE GOES HERE
+   console.log("Extension loaded"); 
+    const texteventiframe = document.querySelector('.docs-texteventtarget-iframe');
+    const texteventiframe_window = texteventiframe.contentWindow;
+    const texteventiframe_doc = texteventiframe_window.document;
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function dispatchTypeEvent(contentWindow, doc, eventType, char) {
+        const charCode = char.charCodeAt(0);
+        const codeString = "Key" + char.toUpperCase();
+        
+        const eventInit = {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            view: contentWindow,
+            key: char,
+            code: codeString,
+            location: 0,
+            repeat: false
+        };
+
+        const keebEvent = new contentWindow.KeyboardEvent(eventType, eventInit);
+        Object.defineProperties(keebEvent, {
+            keyCode: { value: charCode },
+            which: { value: charCode },
+            charCode: { value: eventType === 'keypress' ? charCode : 0 },
+            key: { value: char },
+            code: { value: codeString }
+        });
+
+        return doc.dispatchEvent(keebEvent);
+    }
+
+    async function writeText(text, perKeyDelay) {
+        for (let i = 0; i < text.length; i++) {
+            const char = text.charAt(i);
+            await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keydown", char);
+            await delay(perKeyDelay);
+            await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keypress", char);
+            await delay(perKeyDelay);
+            await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keyup", char);
+            await delay(perKeyDelay);
+        }
+    }
+
+    async function startWriting() {
+        const text = prompt("Enter text to type:");
+        if (!text) return;
+        const delayStr = prompt("Delay per key (ms):", "100");
+        const delay = parseInt(delayStr) || 100;
+        await writeText(text, delay);
+    }
+
+    document.addEventListener('keydown', async (e) => {
+        if (e.ctrlKey && e.shiftKey && e.code === 'KeyY') {
+            e.preventDefault();
+            await startWriting();
+        }
+    });
+}
+
+// Inject into Main World
+const script = document.createElement('script');
+script.textContent = `(${codeToInject.toString()})();`;
+(document.head || document.documentElement).appendChild(script);
+script.remove();
+
