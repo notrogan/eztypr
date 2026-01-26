@@ -11,18 +11,15 @@
 #### - Adding random delay to each character typed
 #### - Text Highlighting to see which words are affected
 </div>
-<br><br><br>
+<br><br>
 
 > [!IMPORTANT]
 > This extension is only available for Firefox.
-
 
 ![GitHub License](https://img.shields.io/github/license/FBIGlowie/eztypr)
 ![GitHub language count](https://img.shields.io/github/languages/count/FBIGlowie/eztypr)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/t/FBIGlowie/eztypr)
 
-
-<br>
 <div>
   
 ## Instalation
