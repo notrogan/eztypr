@@ -62,7 +62,7 @@ The Background/Popup script itself manages the DOM of the popup, sees what's ena
 <br>Why a page script? The dispach event function the extension uses to send keystrokes to the main Google Docs iframe needs to be part of the actuall DOM of the Google Doc instead of being an external "content" script to be able to dispach keystrokes due to world separation of content script. Now the background script cannot directly send object to a page script because of extension isolation. It needs to send a message to a content script first via `browser.tabs.sendMessage()` which will immediatly forward it to the page script via `window.postMessage()`. 
 <br>The content script also exists to inject the page script ( as a script element as part of the Docs' page's DOM ) upon the popup opening. The page script will report abck the progress of the writing using the same path but in reverse.
 ### Injecting keystrokes
-Google Docs uses canvas based rendering ( it draw raw to the script ) and uses nested iframes for this. Only one of this iframes actaully accepts keyboard events, which is `.docs-texteventtarget-iframe`.<br>
+Google Docs uses canvas based rendering ( it draws raw pixels to page ) and uses nested iframes for this. Only one of this iframes actaully accepts keyboard events, which is `.docs-texteventtarget-iframe`.<br>
 It will dispach a keydown event, a keypress and a keyup to fully send a key to the doc. There must be a delay in between every press otherwise it doesn't send them in the right order.
 ```javascript
 await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keydown", char);
