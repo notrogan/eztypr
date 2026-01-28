@@ -27,6 +27,7 @@ class KeySim {
 class PageScript {
   currentlyWriting = false;
   percentageDone = 0;
+  doneWriting = false; // will always be true after first run but not during any runs
 
   async sendState() {
     window.postMessage({
@@ -36,40 +37,38 @@ class PageScript {
   }
   
   async wordListProcessor(wordList) {
+    this.doneWriting = false;
     this.currentlyWriting = true;
 
     for (word in wordList) {
-      //itentify which parts of the word isnt in filtered word
-      // need mistake and misspell logic
-      
-
-
+      this.percentageDone = Math.floor(wordList.length / wordList.indexOf(word)) * 100 
       const total_delay = word.delay + word.random; 
+      const [left_content, right_content] = word.original.split(word.filteredWord)
+      left_content != "" ? await this.typeString(left_content, left_content.length * 20) : {} // 20 ms per key
       if (!word.mistake || !word.misspell) {
-        // basic typing with no modifiers
-        const [left_content, right_content] = word.original.split(word.filteredWord)
-        // the non word left and right contents are going to have a hardcoded delay
-        left_content != "" ? await this.typeString(left_content, left_content.length * 20) : {} // 20 ms per key
-        await this.typeString(word.filteredWord, word.total_delay)
-        right_content != "" ? await this.typeString(right_content, right_content.length * 20) : {} // 20 ms per key
-
+        await this.typeString(word.filteredWord, total_delay)
+      } else if (word.mistake) {
+        await this.typeMistakeString(word.filteredWord, total_delay)
+      } else if (word.misspell) {
+        await this.typeMisspellString(word.filteredWord, total_delay)
       }
-
-
-
+      right_content != "" ? await this.typeString(right_content, right_content.length * 20) : {} // 20 ms per key
 
     }
+    this.currentlyWriting = false; //done from here on out 
+    this.doneWriting = true;
   }
 
   async typeMistakeString(string, total_delay) {
     const qwerty = "qwertyuiopasdfghjklzxcvbnm"
-    // sends the clossest 2 letters to the current one at offsets of 1 chars then deletes both of them and tries again, delay with mistake
+    // sends the clossest 2 letters to the current one at offsets of 1 chars then deletes both of them and tries again
     const delay_per_char = total_delay / string.length;
     for (char in string) {
-      if (string.indexOf(char) % 2 == 0) {
-        const closest_left = string[string.indexOf(char) -1];
-        const closest_right = string[string.indexOf(char) +1];
-        if (Math.random() > .5) { // 50% chance to either type the left or right char near it
+      if (Math.random() > .75) { // misspells 75% of the time
+        const closest_left = qwerty[qwerty.indexOf(char) -1];
+        const closest_right = qwerty[qwerty.indexOf(char) +1];
+        if (Math.random() > .5) { // on a coin toss either type the left or right char near it
+          // !TODO: figure out if the extra delay is necessary or not 
           this.sendEventSequence(closest_left, delay_per_char)
           this.sendEventSequence(char, delay_per_char)
           this.sendEventSequence("Backspace", delay_per_char)
@@ -92,9 +91,30 @@ class PageScript {
 
   async typeMisspellString(string, total_delay) {
    const qwerty = "qwertyuiopasdfghjklzxcvbnm"
-   // typos a clossest letter to the current one at offsets of 2 chars then deletes the whole word and tries again, double the amount of delay
+   // typos a clossest letter to the current one at offsets of 2 chars then deletes the whole word and tries again
     
+    const delay_per_char = total_delay / string.length;
+    
+    for (const char in string) {
+      if (string.indexOf(char) % 2 ==0) {
+        const closest_left = qwerty[qwerty.indexOf(char) -1];
+        const closest_right = qwerty[qwerty.indexOf(char) +1]; 
+        // On a coin toss it either send the left or right closes char 
+        Math.random() > .5 ? await this.sendEventSequence(closest_left, delay_per_char) : await this.sendEventSequence(closest_right, delay_per_char)
+
+      } else {
+        this.sendEventSequence(char, delay_per_char)
+      }
+    }
+    // !TODO: word delay is doubled here, this may or may not be wanted
+    // delete the entire word
+    for (const i = 0; i < string.length; i++ ) {
+      this.sendEventSequence("Backspace", 20)
+    }
+    // rewrite it all over again
+    string.forEach(char => { this.sendEventSequence(char, delay_per_char)});
   }
+
 
   async typeString(string, total_delay) {
     // simple function that types a string with no modifiers on it 
@@ -180,23 +200,7 @@ class PageScript {
     return doc.dispatchEvent(keebEvent);
   }
 
-  async writeChar(char) {
 
-  }
-
-  async writeText(text, total_delay) {
-    //unpack the text object
-
-    for (let i = 0; i < text.length; i++) {
-        const char = text.charAt(i);
-        await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keydown", char);
-        await delay(total_delay);
-        await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keypress", char);
-        await delay(total_delay);
-        await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keyup", char);
-        await delay(total_delay);
-    }
-  }
 
   constructor() {
     //Start the event listener
@@ -214,177 +218,7 @@ class PageScript {
 }
 
 
-// main.js - This is your content script
-function codeToInject() {
-    // ALL YOUR CODE GOES HERE
 
-
-
-
-    console.log("Extension loaded"); 
-    const texteventiframe = document.querySelector('.docs-texteventtarget-iframe');
-    const texteventiframe_window = texteventiframe.contentWindow;
-    const texteventiframe_doc = texteventiframe_window.document;
-
-    function delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async function dispatchTypeEvent(contentWindow, doc, eventType, char) {
-        const charCode = char.charCodeAt(0);
-        const codeString = "Key" + char.toUpperCase();
-        
-        const eventInit = {
-            bubbles: true,
-            cancelable: true,
-            composed: true,
-            view: contentWindow,
-            key: char,
-            code: codeString,
-            location: 0,
-            repeat: false
-        };
-
-        const keebEvent = new contentWindow.KeyboardEvent(eventType, eventInit);
-        Object.defineProperties(keebEvent, {
-            keyCode: { value: charCode },
-            which: { value: charCode },
-            charCode: { value: eventType === 'keypress' ? charCode : 0 },
-            key: { value: char },
-            code: { value: codeString }
-        });
-
-        return doc.dispatchEvent(keebEvent);
-    }
-
-    async function writeText(text, total_delay) {
-        for (let i = 0; i < text.length; i++) {
-            const char = text.charAt(i);
-            await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keydown", char);
-            await delay(total_delay);
-            await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keypress", char);
-            await delay(total_delay);
-            await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keyup", char);
-            await delay(total_delay);
-        }
-    }
-
-    async function startWriting() {
-        const text = prompt("Enter text to type:");
-        if (!text) return;
-        const delayStr = prompt("Delay per key (ms):", "100");
-        const delay = parseInt(delayStr)|| 100;
-        await writeText(text, delay);
-    }
-
-    // Inside codeToInject()
-    window.addEventListener('message', async (event) => {
-      if (event.data.type === 'eztyprWrite') {
-        const { text, delay } = event.data;
-        await writeText(text, parseInt(delay));
-      }
-    });
-
-
-
-
-    document.addEventListener('keydown', async (e) => {
-        if (e.ctrlKey && e.shiftKey && e.code === 'KeyY') {
-            e.preventDefault();
-            await startWriting();
-        }
-    });
-}
-
-// main.js - This is your content script
-function codeToInject() {
-    // ALL YOUR CODE GOES HERE
-
-
-
-
-    console.log("Extension loaded"); 
-    const texteventiframe = document.querySelector('.docs-texteventtarget-iframe');
-    const texteventiframe_window = texteventiframe.contentWindow;
-    const texteventiframe_doc = texteventiframe_window.document;
-
-    function delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async function dispatchTypeEvent(contentWindow, doc, eventType, char) {
-        const charCode = char.charCodeAt(0);
-        const codeString = "Key" + char.toUpperCase();
-        
-        const eventInit = {
-            bubbles: true,
-            cancelable: true,
-            composed: true,
-            view: contentWindow,
-            key: char,
-            code: codeString,
-            location: 0,
-            repeat: false
-        };
-
-        const keebEvent = new contentWindow.KeyboardEvent(eventType, eventInit);
-        Object.defineProperties(keebEvent, {
-            keyCode: { value: charCode },
-            which: { value: charCode },
-            charCode: { value: eventType === 'keypress' ? charCode : 0 },
-            key: { value: char },
-            code: { value: codeString }
-        });
-
-        return doc.dispatchEvent(keebEvent);
-    }
-
-    async function writeText(text, total_delay) {
-        for (let i = 0; i < text.length; i++) {
-            const char = text.charAt(i);
-            await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keydown", char);
-            await delay(total_delay);
-            await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keypress", char);
-            await delay(total_delay);
-            await dispatchTypeEvent(texteventiframe_window, texteventiframe_doc, "keyup", char);
-            await delay(total_delay);
-        }
-    }
-
-    async function startWriting() {
-        const text = prompt("Enter text to type:");
-        if (!text) return;
-        const delayStr = prompt("Delay per key (ms):", "100");
-        const delay = parseInt(delayStr)|| 100;
-        await writeText(text, delay);
-    }
-
-    // Inside codeToInject()
-    window.addEventListener('message', async (event) => {
-      if (event.data.type === 'eztyprWrite') {
-        const { text, delay } = event.data;
-        await writeText(text, parseInt(delay) || 100);
-      }
-    });
-
-
-
-
-    document.addEventListener('keydown', async (e) => {
-        if (e.ctrlKey && e.shiftKey && e.code === 'KeyY') {
-            e.preventDefault();
-            await startWriting();
-        }
-    });
-}
-
-if (!document.documentElement.getAttribute('data-eztypr-injected')) {
-    const script = document.createElement('script');
-    script.textContent = `(${codeToInject.toString()})();`;
-    (document.head || document.documentElement).appendChild(script);
-    script.remove();
-    document.documentElement.setAttribute('data-eztypr-injected', 'true');
-}
 
 // 2. Setup Listener (Only once)
 // Use 'browser' for Firefox, fallback to 'chrome' if needed
